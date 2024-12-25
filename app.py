@@ -1,67 +1,60 @@
+# streamlit_app.py
 import streamlit as st
+import numpy as np
 import pandas as pd
-import joblib
-import matplotlib.pyplot as plt
-import seaborn as sns
+import pickle
+from sklearn.preprocessing import StandardScaler
 from sklearn.datasets import load_iris
+import matplotlib.pyplot as plt  # Importing matplotlib for plotting
 
 # Load the saved model and scaler
-model = joblib.load('iris_model.pkl')
-scaler = joblib.load('iris_scaler.pkl')
+with open('random_forest_model.pkl', 'rb') as f:
+    best_rf_model = pickle.load(f)
 
-# Load dataset for reference
+with open('scaler.pkl', 'rb') as f:
+    scaler = pickle.load(f)
+
+# Load iris dataset for reference
 iris = load_iris()
+iris_df = pd.DataFrame(iris.data, columns=iris.feature_names)
+iris_df['species'] = iris.target_names[iris.target]
 
-# Streamlit app
+# Streamlit app title
 st.title("Iris Flower Prediction")
-st.write("Predict the type of Iris flower based on its features. Enter the measurements below and click Predict.")
+st.write("This app predicts the species of Iris flowers based on the input features.")
 
-# Use columns for input fields to improve layout
-col1, col2 = st.columns(2)
+# Add input fields for the four features
+sepal_length = st.number_input('Sepal Length (cm)', min_value=0.0, max_value=10.0, value=5.0)
+sepal_width = st.number_input('Sepal Width (cm)', min_value=0.0, max_value=10.0, value=3.5)
+petal_length = st.number_input('Petal Length (cm)', min_value=0.0, max_value=10.0, value=1.4)
+petal_width = st.number_input('Petal Width (cm)', min_value=0.0, max_value=10.0, value=0.2)
 
-with col1:
-    sepal_length = st.number_input("Sepal Length (cm)", min_value=0.0, step=0.1, value=5.1)
-    petal_length = st.number_input("Petal Length (cm)", min_value=0.0, step=0.1, value=1.4)
+# Prepare the input data for prediction
+input_data = np.array([[sepal_length, sepal_width, petal_length, petal_width]])
 
-with col2:
-    sepal_width = st.number_input("Sepal Width (cm)", min_value=0.0, step=0.1, value=3.5)
-    petal_width = st.number_input("Petal Width (cm)", min_value=0.0, step=0.1, value=0.2)
+# Standardize the input data
+input_data_scaled = scaler.transform(input_data)
 
-# Prediction button
-if st.button("Predict"):
-    # Prepare input features
-    input_features = [[sepal_length, sepal_width, petal_length, petal_width]]
-    scaled_features = scaler.transform(input_features)
+# Predict the species when the button is clicked
+if st.button('Predict'):
+    prediction = best_rf_model.predict(input_data_scaled)
+    predicted_species = iris.target_names[prediction][0]
+    st.write(f"Predicted Species: {predicted_species}")
 
-    # Make prediction
-    prediction = model.predict(scaled_features)[0]
-    prediction_proba = model.predict_proba(scaled_features)[0]
+# Optional: Display the model's feature importance
+st.write("### Feature Importance (Random Forest)")
 
-    # Display predicted class
-    st.write(f"### Predicted Class: **{iris.target_names[prediction]}**")
+# Accessing the feature importances from the RandomForestClassifier
+feature_importances = best_rf_model.named_steps['randomforestclassifier'].feature_importances_
+features = iris.feature_names
 
-    # Display prediction probabilities
-    st.write("### Prediction Probabilities:")
-    proba_df = pd.DataFrame([prediction_proba], columns=iris.target_names)
-    st.dataframe(proba_df)
+# Plot feature importance
+fig, ax = plt.subplots()
+ax.barh(features, feature_importances)
+ax.set_xlabel('Feature Importance')
+ax.set_title('Feature Importance for Random Forest')
+st.pyplot(fig)
 
-    # Plot prediction probabilities
-    fig, ax = plt.subplots(figsize=(6, 4))
-    sns.barplot(x=iris.target_names, y=prediction_proba, ax=ax, palette="Set2")
-    ax.set_title("Prediction Probabilities")
-    ax.set_ylabel("Probability")
-    ax.set_xlabel("Iris Classes")
-    st.pyplot(fig)
-
-    # Add more help text
-    st.write("### How it works:")
-    st.write("The model uses the following features to predict the species of the Iris flower:")
-    st.write("- **Sepal Length (cm)**")
-    st.write("- **Sepal Width (cm)**")
-    st.write("- **Petal Length (cm)**")
-    st.write("- **Petal Width (cm)**")
-    st.write(
-        "Once you enter the values, the model provides the predicted Iris flower species along with the probabilities for each class.")
-
-# Footer
-st.write("Model Trained using Scikit-learn with Logistic Regression")
+# Optional: Display the Iris dataset for reference
+st.write("### Iris Dataset Sample")
+st.dataframe(iris_df.head())
